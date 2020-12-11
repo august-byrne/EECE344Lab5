@@ -122,8 +122,10 @@ static void ControlDisplayTask(void){
 		if (PreviousAlarmState != CurrentAlarmState){		//display "alarm off" on the LCD
 			LcdDispLineClear(1);
 			LcdDispString("DISARMED");
+			if (PreviousAlarmState == ALARM_ON){
+				AlarmWaveSetMode();			//toggle the alarm wave mode
+			}else{}
 			PreviousAlarmState = CurrentAlarmState;
-			AlarmWaveSetMode();			//toggle the alarm wave mode
 			TSIPadTouched = NO_TOUCH;	//reset the pad touch memory
 		}else{}
 		if (KeyGet() == DC1){			//if a is pressed, set alarm state as armed
@@ -135,9 +137,6 @@ static void ControlDisplayTask(void){
 			LcdDispLineClear(1);
 			LcdDispString("ARMED");
 			PreviousAlarmState = CurrentAlarmState;
-			if (PreviousAlarmState == ALARM_ON){
-				AlarmWaveSetMode();			//toggle the alarm wave mode
-			}else{}
 		}else{}
 		if (KeyGet() == DC4){			//if d is pressed, set alarm state as disarmed
 			CurrentAlarmState = ALARM_DISARMED;
