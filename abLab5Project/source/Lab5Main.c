@@ -71,23 +71,33 @@ static void SensorTask(void){
 static void LEDTask(void){
 	switch (CurrentAlarmState){
 	case ALARM_DISARMED:
-		if (TouchSensorValue == 1){
+		if ((TSIFlagsValue & (1<<BRD_PAD1_CH)) != 0){
 			MiliSecTimer++;
 			if (MiliSecTimer >= 25){	//need a period of 500ms, so toggle every 250ms
 				LED8_TOGGLE();
+				MiliSecTimer = 0;
+			}else{}
+		}else{
+			LED8_TURN_OFF();
+		}
+		if ((TSIFlagsValue & (1<<BRD_PAD2_CH)) != 0){
+			MiliSecTimer++;
+			if (MiliSecTimer >= 25){	//need a period of 500ms, so toggle every 250ms
 				LED9_TOGGLE();
 				MiliSecTimer = 0;
 			}else{}
-		}else{}
+		}else{
+			LED9_TURN_OFF();
+		}
 		break;
 	case ALARM_ARMED:
 		MiliSecTimer++;
 		if (MiliSecTimer == 25){	//need a period of 500ms, so swap every 250ms
-			LED8_OFF();
-			LED9_ON();
+			LED8_TURN_OFF();
+			LED9_TURN_ON();
 		}else if (MiliSecTimer >= 50){	//need a period of 500ms, so swap every 250ms
-			LED8_ON();
-			LED9_OFF();
+			LED8_TURN_ON();
+			LED9_TURN_OFF();
 			MiliSecTimer = 0;
 		}else{}
 		break;
@@ -141,10 +151,10 @@ static void ControlDisplayTask(void){
 		if (KeyGet() == DC4){			//if d is pressed, set alarm state as disarmed
 			CurrentAlarmState = ALARM_DISARMED;
 		}else{}
-		if ((TouchSensorValue & (1<<BRD_PAD1_CH)) != 0){
+		if ((TSIFlagsValue & (1<<BRD_PAD1_CH)) != 0){
 			TSIPadTouched = PAD_1;
 			CurrentAlarmState = ALARM_ON;
-		}else if ((TouchSensorValue & (1<<BRD_PAD2_CH)) != 0){
+		}else if ((TSIFlagsValue & (1<<BRD_PAD2_CH)) != 0){
 			TSIPadTouched = PAD_2;
 			CurrentAlarmState = ALARM_ON;
 		}else{
