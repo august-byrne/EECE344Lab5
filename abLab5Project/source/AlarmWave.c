@@ -1,8 +1,7 @@
 /*
  * AlarmWave.c enables the pit and DAC on our board, and sets up a software interrupt-based
  * counter which, depending on the mode, either sends a constant 1.65v out of the DAC,
- * or sends a 300Hz sine wave (made from 64 samples) out of the DAC, which goes on and off
- * at a period of 1 second.
+ * or sends a 300Hz (plus 4 harmonics) sine wave (made from 64 samples) out of the DAC.
  *
  *  Created on: Nov 18, 2020
  *  Last edited on: Dec 10, 2020
@@ -23,20 +22,19 @@ void PIT0_IRQHandler(void);
 
 typedef enum {ALARM_OFF, ALARM_ON} ALARM_SET_MODE;
 typedef enum {SINE_OFF, SINE_ON} SINE_MODE;
-
-//sine wave samples
-static const INT16U sineSamples[64] = {0x8000,0x8C8B,0x98F8,0xA528,0xB0FB,0xBC56,
-		0xC71C,0xD133,0xDA82,0xE2F2,0xEA6D,0xF0E2,0xF641,0xFA7D,0xFD8A,0xFF62,0xFFFF,
-		0xFF62,0xFD8A,0xFA7D,0xF641,0xF0E2,0xEA6D,0xE2F2,0xDA82,0xD133,0xC71C,0xBC56,
-		0xB0FB,0xA528,0x98F8,0x8C8B,0x8000,0x7374,0x6707,0x5AD7,0x4F04,0x43A9,0x38E3,
-		0x2ECC,0x257D,0x1D0D,0x1592,0xF1D,0x9BE,0x582,0x275,0x9D,0x0,0x9D,0x275,0x582,
-		0x9BE,0xF1D,0x1592,0x1D0D,0x257D,0x2ECC,0x38E3,0x43A9,0x4F04,0x5AD7,0x6707,0x7374};
+//sine wave samples for a sine wave with 2nd, 3rd, 4th, and 8th harmonics
+static const INT16U alarmSineSamples[64] = {0x8000,0xAAD5,0xC8B7,0xD332,0xCD26,0xC061,
+		0xB77B,0xB79E,0xBDCD,0xC145,0xB96D,0xA3CD,0x865B,0x6CB9,0x61EA,0x6A13,0x8000,
+		0x97E2,0xA5BA,0xA3C9,0x955A,0x8454,0x7B21,0x7E71,0x8A9A,0x9603,0x972D,0x8AB5,
+		0x75BE,0x633E,0x5DB7,0x690C,0x8000,0x96F3,0xA248,0x9CC1,0x8A41,0x754A,0x68D2,
+		0x69FC,0x7565,0x818E,0x84DE,0x7BAB,0x6AA5,0x5C36,0x5A45,0x681D,0x8000,0x95EC,
+		0x9E15,0x9346,0x79A4,0x5C32,0x4692,0x3EBA,0x4232,0x4861,0x4884,0x3F9E,0x32D9,
+		0x2CCD,0x3748,0x552A};
 
 static INT8U PitEventFlag = 0;
-static INT8U SineOn = 0;
-static INT16U HalfSecTimer = 0;
-static SINE_MODE SineCounter = SINE_OFF;
-static ALARM_SET_MODE AlarmSetMode = ALARM_ON;
+static SINE_MODE SineOn = SINE_OFF;
+static INT8U SineCounter = 0;
+static ALARM_SET_MODE AlarmSetMode = ALARM_OFF;
 
 void AlarmWaveInit(void){
 	SIM->SCGC6 |= SIM_SCGC6_PIT(1);		//turn on the PIT clock
@@ -55,15 +53,9 @@ void AlarmWaveControlTask(void){
 	DB3_TURN_ON();
 	PitEventFlag = 0;
 	if (AlarmSetMode == ALARM_ON){
-		HalfSecTimer++;
-		if (HalfSecTimer == 50){
-			SineOn = 1;
-		}else if (HalfSecTimer >= 100){
-			SineOn = 0;
-			HalfSecTimer = 0;
-		}else{}
+		SineOn = SINE_ON;
 	}else if (AlarmSetMode == ALARM_OFF){
-		SineOn = 0;
+		SineOn = SINE_OFF;
 	}else{}
 	DB3_TURN_OFF();
 }
@@ -76,8 +68,6 @@ void AlarmWaveSetMode(void){
 	}else{}
 	SineOn = SINE_OFF;
 	SineCounter = 0;
-	//reset the AlarmOnModeToggle to start with the sine output
-	HalfSecTimer = 0;
 }
 
 void PIT0_IRQHandler(void){
@@ -90,12 +80,12 @@ void PIT0_IRQHandler(void){
 			SineCounter = 0;
 		}else{}
 		//write sine wave to the DAC
-		DAC0->DAT[0].DATL = (INT8U)((sineSamples[SineCounter]>>4) & 0xff);	//chop off the least significant bits of the 16 bit value, to get a 12 bit value, for use in the 12 bit DAC
-		DAC0->DAT[0].DATH = (INT8U)(sineSamples[SineCounter]>>12);
+		DAC0->DAT[0].DATL = (INT8U)((alarmSineSamples[SineCounter]>>4) & 0xff);	//chop off the least significant bits of the 16 bit value, to get a 12 bit value, for use in the 12 bit DAC
+		DAC0->DAT[0].DATH = (INT8U)(alarmSineSamples[SineCounter]>>12);
 	}else if (SineOn == SINE_OFF){
 		//write constant 1.65v to the DAC
-		DAC0->DAT[0].DATL = (INT8U)((sineSamples[0]>>4) & 0xff);	//sineSamples[0] represents half of the full scale voltage of the DAC, since it is the middle value of the sine wave
-		DAC0->DAT[0].DATH = (INT8U)(sineSamples[0]>>12);
+		DAC0->DAT[0].DATL = (INT8U)((alarmSineSamples[0]>>4) & 0xff);	//sineSamples[0] represents half of the full scale voltage of the DAC, since it is the middle value of the sine wave
+		DAC0->DAT[0].DATH = (INT8U)(alarmSineSamples[0]>>12);
 	}else{}
 	DB4_TURN_OFF();
 }
