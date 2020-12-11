@@ -27,10 +27,11 @@ static void LEDTask(void);
 typedef enum {NO_TOUCH, PAD_1, PAD_2} PAD_TOUCH;
 typedef enum {ALARM_DISARMED, ALARM_ARMED, ALARM_ON} ALARM_STATE;
 static ALARM_STATE CurrentAlarmState = ALARM_DISARMED;	//initial state is alarm off
-static ALARM_STATE PreviousAlarmState = ALARM_ON;
+static ALARM_STATE PreviousAlarmState = ALARM_ARMED;
 static PAD_TOUCH TSIPadTouched = NO_TOUCH;
 static INT16U MiliSecTimer = 0;
 static INT16U TSIFlagsValue = 0;
+static INT8U OnEnter = 0;
 
 void main(void){
 	INT16U math_val = 0;
@@ -63,32 +64,31 @@ void main(void){
 
 //handles all TSI scanning
 static void SensorTask(void){
+	DB3_TURN_ON();
 	TSITask();
 	TSIFlagsValue = TSIGetSensorFlags();
+	DB3_TURN_OFF();
 }
 
 //handles all LED control
 static void LEDTask(void){
+	DB4_TURN_ON();
 	switch (CurrentAlarmState){
 	case ALARM_DISARMED:
-		if ((TSIFlagsValue & (1<<BRD_PAD1_CH)) != 0){
-			MiliSecTimer++;
-			if (MiliSecTimer >= 25){	//need a period of 500ms, so toggle every 250ms
+		MiliSecTimer++;
+		if (MiliSecTimer >= 25){	//need a period of 500ms, so toggle every 250ms
+			MiliSecTimer = 0;
+			if ((TSIFlagsValue & (1<<BRD_PAD1_CH)) != 0){
 				LED8_TOGGLE();
-				MiliSecTimer = 0;
-			}else{}
-		}else{
-			LED8_TURN_OFF();
-		}
-		if ((TSIFlagsValue & (1<<BRD_PAD2_CH)) != 0){
-			MiliSecTimer++;
-			if (MiliSecTimer >= 25){	//need a period of 500ms, so toggle every 250ms
+			}else{
+				LED8_TURN_OFF();
+			}
+			if ((TSIFlagsValue & (1<<BRD_PAD2_CH)) != 0){
 				LED9_TOGGLE();
-				MiliSecTimer = 0;
-			}else{}
-		}else{
-			LED9_TURN_OFF();
-		}
+			}else{
+				LED9_TURN_OFF();
+			}
+		}else{}
 		break;
 	case ALARM_ARMED:
 		MiliSecTimer++;
@@ -102,6 +102,11 @@ static void LEDTask(void){
 		}else{}
 		break;
 	case ALARM_ON:
+		if(OnEnter == 1){
+			OnEnter = 0;
+			LED8_TURN_OFF();
+			LED9_TURN_OFF();
+		}else{}
 		MiliSecTimer++;
 		if (MiliSecTimer >= 5){	//need a period of 100ms, so toggle every 50ms
 			if (TSIPadTouched == PAD_1){
@@ -117,6 +122,7 @@ static void LEDTask(void){
 		LED8_TURN_OFF();
 		LED9_TURN_OFF();
 	}
+	DB4_TURN_OFF();
 }
 
 /****************************************************************************************
@@ -165,6 +171,7 @@ static void ControlDisplayTask(void){
 		if (PreviousAlarmState != CurrentAlarmState){		//display "alarm on" on the LCD
 			LcdDispLineClear(1);
 			LcdDispString("ALARM");
+			OnEnter = 1;
 			PreviousAlarmState = CurrentAlarmState;
 			AlarmWaveSetMode();			//toggle the alarm wave mode
 		}else{}
@@ -174,7 +181,7 @@ static void ControlDisplayTask(void){
 		break;
 	default:
 		CurrentAlarmState = ALARM_DISARMED;
-		PreviousAlarmState = ALARM_ON;
+		PreviousAlarmState = ALARM_ARMED;
 	}
 	DB1_TURN_OFF();
 }
